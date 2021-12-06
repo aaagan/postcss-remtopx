@@ -1,4 +1,5 @@
 const pxRegex = require("./lib/pixel-unit-regex");
+const remRegex = require("./lib/rem-unit-regex");
 const filterPropList = require("./lib/filter-prop-list");
 const type = require("./lib/type");
 
@@ -43,13 +44,13 @@ function convertLegacyOptions(options) {
   });
 }
 
-function createPxReplace(rootValue, unitPrecision, minPixelValue) {
+function createRemReplace(rootValue, unitPrecision, minPixelValue) {
   return (m, $1) => {
     if (!$1) return m;
-    const pixels = parseFloat($1);
-    if (pixels < minPixelValue) return m;
-    const fixedVal = toFixed(pixels / rootValue, unitPrecision);
-    return fixedVal === 0 ? "0" : fixedVal + "rem";
+    const rem = parseFloat($1);
+    if (rem < minPixelValue) return m;
+    const fixedVal = toFixed(rem * rootValue, unitPrecision);
+    return fixedVal === 0 ? "0" : fixedVal + "px";
   };
 }
 
@@ -122,9 +123,9 @@ module.exports = (options = {}) => {
   const satisfyPropList = createPropListMatcher(opts.propList);
   const exclude = opts.exclude;
   let isExcludeFile = false;
-  let pxReplace;
+  let remReplace;
   return {
-    postcssPlugin: "postcss-pxtorem",
+    postcssPlugin: "postcss-remtopx",
     Once(css) {
       const filePath = css.source.input.file;
       if (
@@ -142,7 +143,7 @@ module.exports = (options = {}) => {
         typeof opts.rootValue === "function"
           ? opts.rootValue(css.source.input)
           : opts.rootValue;
-      pxReplace = createPxReplace(
+      remReplace = createRemReplace(
         rootValue,
         opts.unitPrecision,
         opts.minPixelValue
@@ -152,13 +153,13 @@ module.exports = (options = {}) => {
       if (isExcludeFile) return;
 
       if (
-        decl.value.indexOf("px") === -1 ||
+        decl.value.indexOf("rem") === -1 ||
         !satisfyPropList(decl.prop) ||
         blacklistedSelector(opts.selectorBlackList, decl.parent.selector)
       )
         return;
 
-      const value = decl.value.replace(pxRegex, pxReplace);
+      const value = decl.value.replace(remRegex, remReplace);
 
       // if rem unit already exists, do not add or replace
       if (declarationExists(decl.parent, decl.prop, value)) return;
@@ -173,8 +174,8 @@ module.exports = (options = {}) => {
       if (isExcludeFile) return;
 
       if (opts.mediaQuery && atRule.name === "media") {
-        if (atRule.params.indexOf("px") === -1) return;
-        atRule.params = atRule.params.replace(pxRegex, pxReplace);
+        if (atRule.params.indexOf("rem") === -1) return;
+        atRule.params = atRule.params.replace(remRegex, remReplace);
       }
     }
   };
